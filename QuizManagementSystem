@@ -1,0 +1,951 @@
+import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.Collections;
+
+
+enum UserType
+{
+  NONE,
+  ADMIN,
+  STUDENT
+}
+
+
+class Question
+{
+  String text;
+  String[]choices;
+  char correctChoice;
+  String category;
+}
+
+
+class StackNode
+{
+  Question data;
+  StackNode next;
+}
+
+
+class Stack
+{
+  StackNode top;
+
+  void push (Question question)
+  {
+    StackNode newNode = new StackNode ();
+      newNode.data = question;
+      newNode.next = top;
+      top = newNode;
+  }
+
+  Question pop ()
+  {
+    if (top == null)
+      {
+	return null;
+      }
+    Question poppedQuestion = top.data;
+    top = top.next;
+    return poppedQuestion;
+  }
+}
+
+
+class Credentials
+{
+  String username;
+  String password;
+}
+
+
+class DoubleCircularListNode
+{
+  Question data;
+  DoubleCircularListNode next;
+  DoubleCircularListNode prev;
+  int timeAllocated;
+}
+
+
+class DoubleCircularList
+{
+  DoubleCircularListNode head;
+}
+
+
+class QueueNode
+{
+  char answer;
+  QueueNode next;
+}
+
+
+class Queue
+{
+  QueueNode front;
+  QueueNode rear;
+}
+
+
+class StudentScore
+{
+  String username;
+  int score;
+
+    StudentScore (String username, int score)
+  {
+    this.username = username;
+    this.score = score;
+  }
+}
+
+public class QuizManagementSystem
+{
+
+
+  static Scanner scanner = new Scanner (System.in);
+
+
+  static UserType loggedInUserType = UserType.NONE;
+  static Credentials adminCredentials = new Credentials ();
+  static Stack questionBank = new Stack ();
+  static DoubleCircularList questionPaperList = new DoubleCircularList ();
+  static ArrayList < StudentScore > studentScores = new ArrayList <> ();
+  static String currentStudentUsername;
+  static int numQuestions = 0;
+
+  public static void main (String[]args)
+  {
+    initializeSystem ();
+
+    System.out.println ("Welcome to the Quiz Management System!");
+
+    while (true)
+      {
+	if (loggedInUserType == UserType.NONE)
+	  {
+	    mainMenu ();
+	  }
+	else if (loggedInUserType == UserType.ADMIN)
+	  {
+	    adminMenu ();
+	  }
+	else if (loggedInUserType == UserType.STUDENT)
+	  {
+	    studentMenu ();
+	  }
+      }
+  }
+
+
+  static void initializeSystem ()
+  {
+    adminCredentials.username = "admin";
+    adminCredentials.password = "password";
+  }
+
+
+  static Question createQuestion (String text, String[]choices,
+				  char correctChoice, String category)
+  {
+    Question newQuestion = new Question ();
+    newQuestion.text = text;
+    newQuestion.choices = choices.clone ();
+    newQuestion.correctChoice = Character.toUpperCase (correctChoice);
+    newQuestion.category = category;
+    return newQuestion;
+  }
+
+
+  static void displayQuestion (Question question)
+  {
+    System.out.println ("Question: " + question.text);
+    System.out.println ("Category: " + question.category);
+    System.out.println ("Options:");
+    for (int i = 0; i < question.choices.length; i++)
+      {
+	System.out.println ((char) ('A' + i) + ") " + question.choices[i]);
+      }
+  }
+
+
+  static void displayQuestionBank (Stack stack)
+  {
+    System.out.println ("\nQuestion Bank:");
+    StackNode current = stack.top;
+    int questionNumber = 1;
+    while (current != null)
+      {
+	System.out.print (questionNumber + ". ");
+	displayQuestion (current.data);
+	System.out.println ();
+	current = current.next;
+	questionNumber++;
+      }
+  }
+
+
+  static void removeQuestion (Stack stack, int questionNumber)
+  {
+    if (stack.top == null)
+      {
+	System.out.
+	  println ("Question bank is empty. Cannot remove question.");
+	return;
+      }
+
+    if (questionNumber <= 0 || questionNumber > countQuestionsInStack (stack))
+      {
+	System.out.
+	  println
+	  ("Invalid question number. Please enter a valid question number.");
+	return;
+      }
+
+    StackNode current = stack.top;
+    StackNode prev = null;
+    int currentQuestionNumber = 1;
+
+    while (current != null && currentQuestionNumber != questionNumber)
+      {
+	prev = current;
+	current = current.next;
+	currentQuestionNumber++;
+      }
+
+    if (current != null)
+      {
+	if (prev != null)
+	  {
+	    prev.next = current.next;
+	  }
+	else
+	  {
+	    stack.top = current.next;
+	  }
+	System.out.println ("Question number " + questionNumber +
+			    " has been removed.");
+      }
+  }
+
+
+  static int countQuestionsInStack (Stack stack)
+  {
+    int count = 0;
+    StackNode current = stack.top;
+    while (current != null)
+      {
+	count++;
+	current = current.next;
+      }
+    return count;
+  }
+
+
+  static void initializeQuestionPaperList (DoubleCircularList list)
+  {
+    list.head = null;
+  }
+
+
+  static void appendToQuestionPaperList (DoubleCircularList list,
+					 Question question, int timeAllocated)
+  {
+    DoubleCircularListNode newNode = new DoubleCircularListNode ();
+    newNode.data = question;
+    newNode.next = null;
+    newNode.prev = null;
+    newNode.timeAllocated = timeAllocated;
+
+    if (list.head == null)
+      {
+	newNode.next = newNode;
+	newNode.prev = newNode;
+	list.head = newNode;
+      }
+    else
+      {
+	DoubleCircularListNode lastNode = list.head.prev;
+	newNode.next = list.head;
+	newNode.prev = lastNode;
+	list.head.prev = newNode;
+	lastNode.next = newNode;
+      }
+  }
+
+  static void freeQuestionPaperList (DoubleCircularList list)
+  {
+    if (list.head == null)
+      {
+	return;
+      }
+
+    DoubleCircularListNode current = list.head.next;
+    while (current != list.head)
+      {
+	DoubleCircularListNode temp = current;
+	current = current.next;
+	temp.data = null;
+	temp.next = null;
+	temp.prev = null;
+      }
+
+    list.head.data = null;
+    list.head.next = null;
+    list.head.prev = null;
+    list.head = null;
+  }
+
+
+  static void generateQuestionPaper (Stack questionBank,
+				     DoubleCircularList questionPaperList)
+  {
+    if (questionBank.top == null)
+      {
+	System.out.
+	  println ("Question bank is empty. Cannot generate question paper.");
+	return;
+      }
+
+    System.out.
+      println
+      ("Enter the number of questions to include in the question paper: ");
+    numQuestions = scanner.nextInt ();
+
+    if (numQuestions <= 0)
+      {
+	System.out.println ("Invalid number of questions.");
+	return;
+
+
+      }
+
+    System.out.
+      println ("Enter the time allocated for each question (in minutes): ");
+    int timeAllocated = scanner.nextInt ();
+
+    initializeQuestionPaperList (questionPaperList);
+
+    Stack tempStack = new Stack ();
+    initializeStack (tempStack);
+
+    int questionNumber = 1;
+    while (questionNumber <= numQuestions && questionBank.top != null)
+      {
+	Question question = pop (questionBank);
+	push (tempStack, question);
+	questionNumber++;
+      }
+
+    if (questionNumber <= numQuestions)
+      {
+	System.out.
+	  println
+	  ("Insufficient questions in the question bank to generate the question paper.");
+	while (tempStack.top != null)
+	  {
+	    Question question = pop (tempStack);
+	    push (questionBank, question);
+	  }
+	return;
+      }
+
+    questionNumber = 1;
+    while (tempStack.top != null)
+      {
+	Question question = pop (tempStack);
+	appendToQuestionPaperList (questionPaperList, question,
+				   timeAllocated);
+	push (questionBank, question);
+	questionNumber++;
+      }
+
+    System.out.println ("Question paper generated successfully!");
+  }
+
+
+  static boolean navigateQuestionPaper (DoubleCircularList list,
+					Queue answers)
+  {
+    if (list.head == null)
+      {
+	System.out.println ("Question paper is empty.");
+	return false;
+      }
+
+    int totalQuestions = countQuestionsInStack (questionBank);
+    DoubleCircularListNode current = list.head;
+    int questionNumber = 1;
+
+    while (true)
+      {
+	System.out.println ("\n--- Question ---");
+	displayQuestion (current.data);
+
+	char choice;
+	System.out.print ("Your choice (A, B, C, D) ");
+	choice = scanner.next ().charAt (0);
+	choice = Character.toUpperCase (choice);
+
+	if (choice == 'F')
+	  {
+	    if (current.next == list.head)
+	      {
+		System.out.println ("Test finished.");
+		return true;
+	      }
+	    else
+	      {
+		System.out.
+		  println
+		  ("You cannot finish the test until you navigate through all questions.");
+	      }
+	  }
+	else if (choice == 'S')
+	  {
+	    System.out.println ("Question skipped.");
+	    enqueue (answers, ' ');
+	  }
+	else if (choice == 'P')
+	  {
+	    current = current.prev;
+	    questionNumber =
+	      (questionNumber - 2 + totalQuestions) % totalQuestions + 1;
+	    System.out.println ("Navigated to the previous question.");
+	  }
+	else if (choice == 'N')
+	  {
+	    current = current.next;
+	    questionNumber = (questionNumber % totalQuestions) + 1;
+	    System.out.println ("Navigated to the next question.");
+	  }
+	else if (choice >= 'A' && choice <= 'D')
+	  {
+	    enqueue (answers, choice);
+	    System.out.println ("Answer successfully selected.");
+	  }
+	else
+	  {
+	    System.out.
+	      println ("Invalid choice. Please enter a valid option.");
+	  }
+
+	if (current.next == list.head)
+	  {
+	    char submitchoice;
+	    System.out.
+	      print ("Are you sure you want to submit the paper (Y/N): ");
+	    submitchoice = scanner.next ().charAt (0);
+	    if (submitchoice == 'Y' || submitchoice == 'y')
+	      {
+		System.out.println ("Test submitted.");
+		return true;
+	      }
+	    else
+	      {
+		current = current.next;
+		questionNumber = (questionNumber % totalQuestions) + 1;
+		System.out.
+		  println ("Test submission cancelled. Resuming test...");
+	      }
+	  }
+
+	int timeRemaining = current.timeAllocated;
+	System.out.println ("Time remaining for this question: " +
+			    timeRemaining + " minutes");
+
+	try
+	{
+	  Thread.sleep (timeRemaining * 1000);
+	} catch (InterruptedException e)
+	{
+	  e.printStackTrace ();
+	}
+
+	current.timeAllocated--;
+
+	if (current.timeAllocated == 0)
+	  {
+	    System.out.
+	      println
+	      ("Time's up for this question. Moving to the next question.");
+	    current = current.next;
+	    questionNumber = (questionNumber % totalQuestions) + 1;
+	  }
+      }
+  }
+
+
+  static void displayLeaderboard ()
+  {
+    if (studentScores.isEmpty ())
+      {
+	System.out.println ("Leaderboard is empty.");
+	return;
+      }
+
+    System.out.println ("\n--- Leaderboard ---");
+    System.out.printf ("%-15s%-10s\n", "Username", "Score");
+  for (StudentScore score:studentScores)
+      {
+	System.out.printf ("%-15s%-10d\n", score.username, score.score);
+      }
+  }
+
+
+  static void updateLeaderboard (String username, int score)
+  {
+  for (StudentScore studentScore:studentScores)
+      {
+	if (studentScore.username.equals (username))
+	  {
+	    if (score > studentScore.score)
+	      {
+		studentScore.score = score;
+		System.out.
+		  println ("Your score has been updated on the leaderboard.");
+	      }
+	    return;
+	  }
+      }
+
+    studentScores.add (new StudentScore (username, score));
+    System.out.println ("Your score has been added to the leaderboard.");
+  }
+
+
+  static void displayUserProfile ()
+  {
+    System.out.println ("\n--- User Profile ---");
+    System.out.println ("Username: " + currentStudentUsername);
+    int userScore = getUserScore (currentStudentUsername);
+    System.out.println ("Total Score: " + userScore);
+  }
+
+
+  static int getUserScore (String username)
+  {
+  for (StudentScore studentScore:studentScores)
+      {
+	if (studentScore.username.equals (username))
+	  {
+	    return studentScore.score;
+	  }
+      }
+    return 0;
+  }
+
+
+  static void initializeStack (Stack stack)
+  {
+    stack.top = null;
+  }
+
+
+  static void push (Stack stack, Question question)
+  {
+    StackNode newNode = new StackNode ();
+    newNode.data = question;
+    newNode.next = stack.top;
+    stack.top = newNode;
+  }
+
+
+  static Question pop (Stack stack)
+  {
+    if (stack.top == null)
+      {
+	return null;
+      }
+    Question poppedQuestion = stack.top.data;
+    stack.top = stack.top.next;
+    return poppedQuestion;
+  }
+
+
+  static void initializeQueue (Queue queue)
+  {
+    queue.front = null;
+    queue.rear = null;
+  }
+
+
+  static void enqueue (Queue queue, char answer)
+  {
+    QueueNode newNode = new QueueNode ();
+    newNode.answer = answer;
+    newNode.next = null;
+    if (queue.rear == null)
+      {
+	queue.front = newNode;
+	queue.rear = newNode;
+      }
+    else
+      {
+	queue.rear.next = newNode;
+	queue.rear = newNode;
+      }
+  }
+
+
+  static char dequeue (Queue queue)
+  {
+    if (queue.front == null)
+      {
+	return ' ';
+      }
+    char dequeuedAnswer = queue.front.answer;
+    queue.front = queue.front.next;
+    if (queue.front == null)
+      {
+	queue.rear = null;
+      }
+    return dequeuedAnswer;
+  }
+
+
+  static void authenticateUser (UserType userType)
+  {
+    System.out.print ("Enter your username: ");
+    String username = scanner.next ();
+    System.out.print ("Enter your password: ");
+    String password = scanner.next ();
+
+    if (userType == UserType.ADMIN)
+      {
+
+	if (username.equals (adminCredentials.username)
+	    && password.equals (adminCredentials.password))
+	  {
+	    loggedInUserType = UserType.ADMIN;
+	    System.out.println ("Admin login successful.\n");
+	  }
+	else
+	  {
+	    System.out.println ("Invalid credentials. Please try again.\n");
+	  }
+      }
+    else if (userType == UserType.STUDENT)
+      {
+
+	if (isValidStudentUsername (username)
+	    && isValidPassword (username, password))
+	  {
+	    loggedInUserType = UserType.STUDENT;
+	    currentStudentUsername = username;
+	    System.out.println ("Student login successful. Welcome, " +
+				username + "!\n");
+	  }
+	else
+	  {
+	    System.out.println ("Invalid credentials. Please try again.\n");
+	  }
+      }
+  }
+
+
+  static boolean isValidPassword (String username, String password)
+  {
+
+    return !password.isEmpty ();
+  }
+
+
+
+  static void logoutUser ()
+  {
+    if (loggedInUserType == UserType.NONE)
+      {
+	System.out.println ("No user is currently logged in.\n");
+      }
+    else
+      {
+	System.out.println ("Logging out...\n");
+	loggedInUserType = UserType.NONE;
+	currentStudentUsername = null;
+      }
+  }
+
+
+  static void mainMenu ()
+  {
+    System.out.println ("--- Main Menu ---");
+    System.out.println ("1. Admin Login");
+    System.out.println ("2. Student Login");
+    System.out.println ("3. Register as Admin");
+    System.out.println ("4. Register as Student");
+    System.out.println ("5. Exit");
+
+    int choice = scanner.nextInt ();
+
+    switch (choice)
+      {
+      case 1:
+	authenticateUser (UserType.ADMIN);
+	break;
+      case 2:
+	studentLogin ();
+	break;
+      case 3:
+	UserRegistration.registerUser (UserType.ADMIN);
+	break;
+      case 4:
+	UserRegistration.registerUser (UserType.STUDENT);
+	break;
+      case 5:
+	System.out.println ("Exiting the Quiz Management System. Goodbye!");
+	System.exit (0);
+      default:
+	System.out.println ("Invalid choice. Please enter a valid option.\n");
+      }
+  }
+
+
+  static void adminMenu ()
+  {
+    System.out.println ("\n--- Admin Menu ---");
+    System.out.println ("1. Add Question to Bank");
+    System.out.println ("2. Remove Question from Bank");
+    System.out.println ("3. Display Question Bank");
+    System.out.println ("4. Generate Question Paper");
+    System.out.println ("5. Display Leaderboard");
+    System.out.println ("6. Logout");
+
+    int choice = scanner.nextInt ();
+
+    switch (choice)
+      {
+      case 1:
+	addQuestionToBank ();
+	break;
+      case 2:
+	removeQuestionFromBank ();
+	break;
+      case 3:
+	displayQuestionBank (questionBank);
+	break;
+      case 4:
+	generateQuestionPaper (questionBank, questionPaperList);
+	break;
+      case 5:
+	displayLeaderboard ();
+	break;
+      case 6:
+	logoutUser ();
+	break;
+      default:
+	System.out.println ("Invalid choice. Please enter a valid option.\n");
+      }
+  }
+
+
+  static void studentMenu ()
+  {
+    System.out.println ("\n--- Student Menu ---");
+    System.out.println ("1. Start Test");
+    System.out.println ("2. View Profile");
+    System.out.println ("3. Logout");
+
+    int choice = scanner.nextInt ();
+
+    switch (choice)
+      {
+      case 1:
+	startTest ();
+	break;
+      case 2:
+	displayUserProfile ();
+	break;
+      case 3:
+	logoutUser ();
+	break;
+      default:
+	System.out.println ("Invalid choice. Please enter a valid option.\n");
+      }
+  }
+
+
+  static void addQuestionToBank ()
+  {
+    scanner.nextLine ();
+    System.out.println ("Enter the question text:");
+    String text = scanner.nextLine ();
+
+    System.out.println ("Enter the question category:");
+    String category = scanner.nextLine ();
+
+    System.out.println ("Enter the number of choices:");
+    int numChoices = scanner.nextInt ();
+    scanner.nextLine ();
+    String[]choices = new String[numChoices];
+    for (int i = 0; i < numChoices; i++)
+      {
+	System.out.println ("Enter choice " + (char) ('A' + i) + ":");
+	choices[i] = scanner.nextLine ();
+      }
+
+    System.out.println ("Enter the correct choice (A, B, C, D):");
+    char correctChoice = Character.toUpperCase (scanner.next ().charAt (0));
+
+    Question newQuestion =
+      createQuestion (text, choices, correctChoice, category);
+    push (questionBank, newQuestion);
+
+    System.out.
+      println ("Question added to the question bank successfully.\n");
+  }
+
+
+  static void removeQuestionFromBank ()
+  {
+    if (questionBank.top == null)
+      {
+	System.out.
+	  println ("Question bank is empty. Cannot remove question.\n");
+	return;
+      }
+
+    System.out.println ("Enter the question number to remove:");
+    int questionNumber = scanner.nextInt ();
+
+    removeQuestion (questionBank, questionNumber);
+  }
+
+
+  static void startTest ()
+  {
+    if (questionPaperList.head == null)
+      {
+	System.out.
+	  println
+	  ("Question paper is not generated. Please contact the admin.\n");
+	return;
+      }
+
+    scanner.nextLine ();
+    System.out.println ("Enter your username:");
+    String username = scanner.nextLine ();
+
+    currentStudentUsername = username;
+    loggedInUserType = UserType.STUDENT;
+
+    System.out.println ("\nWelcome, " + username + "! The test is starting.");
+
+    Queue answers = new Queue ();
+    boolean testCompleted =
+      navigateQuestionPaper (questionPaperList, answers);
+
+    int score = calculateScore (questionPaperList, answers);
+    updateLeaderboard (username, score);
+
+    System.out.println ("Your test is complete.");
+    System.out.println ("Total Score: " + score);
+
+    loggedInUserType = UserType.NONE;
+    currentStudentUsername = null;
+  }
+
+
+  static int calculateScore (DoubleCircularList list, Queue answers)
+  {
+    int score = 0;
+    DoubleCircularListNode current = list.head;
+    QueueNode currentAnswer = answers.front;
+
+    while (current != null && currentAnswer != null)
+      {
+	if (currentAnswer.answer == current.data.correctChoice)
+	  {
+	    score++;
+	  }
+	current = current.next;
+	currentAnswer = currentAnswer.next;
+      }
+
+    return score;
+  }
+
+  static void studentLogin ()
+  {
+    scanner.nextLine ();
+    System.out.println ("Enter your username:");
+    String username = scanner.nextLine ();
+
+
+    if (isValidStudentUsername (username))
+      {
+	System.out.println ("Login successful. Welcome, " + username + "!");
+	currentStudentUsername = username;
+	loggedInUserType = UserType.STUDENT;
+      }
+    else
+      {
+	System.out.println ("Invalid username. Please try again.");
+      }
+  }
+
+
+  static boolean isValidStudentUsername (String username)
+  {
+
+    // For simplicity, assuming a list of valid student usernames
+
+    //for (String validUsername : validUsernames) {
+    // if (validUsername.equals(username)) {
+    return true;
+  }
+}
+
+   // return false;
+
+
+
+class UserRegistration
+{
+  private static ArrayList < String > registeredUsernames =
+    new ArrayList <> ();
+
+
+  static boolean registerUser (UserType userType)
+  {
+    Scanner scanner = new Scanner (System.in);
+      System.out.println ("Enter a new username:");
+    String newUsername = scanner.nextLine ();
+
+    if (isValidUsername (newUsername))
+      {
+	System.out.println ("Enter a password:");
+	String newPassword = scanner.nextLine ();
+
+
+	  registeredUsernames.add (newUsername);
+
+	switch (userType)
+	  {
+	  case ADMIN:
+	    System.out.println ("Admin registration successful!\n");
+	    break;
+	    case STUDENT:System.out.
+	      println ("Student registration successful!\n");
+	    break;
+	    default:break;
+	  }
+
+	return true;
+      }
+    else
+      {
+	System.out.
+	  println
+	  ("Username already exists or is invalid. Please choose a different username.\n");
+	return false;
+      }
+  }
+
+
+  private static boolean isValidUsername (String username)
+  {
+
+    return !registeredUsernames.contains(username); }
+}
